@@ -1,13 +1,14 @@
 #!/bin/env python3
 import argparse
 import csv
+from time import strptime
 import string
 
 
 def main(cardholder_file: string, door_log_file: string):
     (cardholders, door_logs) = read_files(cardholder_file, door_log_file)
     door_log = calculate_card_numbers(door_logs)
-    door_log = associate_names(cardholders, door_log)
+    cardholders, door_log = associate_names(cardholders, door_log)
     cardholders = calculate_stats(cardholders, door_log)
     write_files(cardholders, door_log, cardholder_file, door_log_file)
 
@@ -47,15 +48,22 @@ def calculate_card_numbers(door_logs: list):
 
 
 def associate_names(cardholders: list, door_logs: list):
+    cards = {}
     door_log = []
     for log in door_logs:
         for card in cardholders:
             if card[1].lower() == log[1]:
                 log.append(card[6])
                 door_log.append(log)
+
+                if strptime(log[0][:19], "%Y-%m-%d %H:%M:%S") > \
+                        strptime(card[7][:19], "%Y-%m-%d %H:%M:%S"):
+                    card[7] = log[0]
+                    cards[card[1].lower()] = card
+
                 break
 
-    return door_log
+    return [v for v in cards.values()], door_log
 
 
 def read_files(cardholder_file: string, door_log_file: string):
@@ -64,6 +72,7 @@ def read_files(cardholder_file: string, door_log_file: string):
     with open(cardholder_file) as f:
         csv_reader = csv.reader(f, delimiter=',')
         for row in csv_reader:
+            row.append('1970-01-01 00:00:00.000000')  # last seen
             cardholders.append(row)
 
     door_logs = []
@@ -73,22 +82,20 @@ def read_files(cardholder_file: string, door_log_file: string):
         for row in csv_reader:
             door_logs.append(row)
 
-    # if door_logs[1][0][0] < door_logs[1][1][0]:
-    #     door_logs = list(reversed(door_logs[1:]))
-
     return cardholders[1:], door_logs[1:]
 
 
 def write_files(cardholders: list, door_log: list, cardholder_file: string, door_log_file: string):
     with open(cardholder_file[:-4] + '-out.csv', 'w') as f:
         csv_writer = csv.writer(f, delimiter=',')
-        csv_writer.writerow(['name', 'card_number', 'exit_reason', 'open_count', 'last_open_utc'])
+        csv_writer.writerow(['name', 'card_number', 'open_count', 'last_open_utc'])
         for row in cardholders:
-            csv_writer.writerow(row)
+            out_row = [row[6], row[1], row[5], row[7]]
+            csv_writer.writerow(out_row)
 
     with open(door_log_file[:-4] + '-out.csv', 'w') as f:
         csv_writer = csv.writer(f, delimiter=',')
-        csv_writer.writerow(['time', 'card_number', 'name'])
+        csv_writer.writerow(['time_utc', 'card_number', 'name'])
         for row in door_log:
             csv_writer.writerow(row)
 
