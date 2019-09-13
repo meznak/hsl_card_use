@@ -7,6 +7,7 @@ import string
 def main(cardholder_file: string, door_log_file: string):
     (cardholders, door_logs) = read_files(cardholder_file, door_log_file)
     door_log = calculate_card_numbers(door_logs)
+    door_log = associate_names(cardholders, door_log)
     cardholders = calculate_stats(cardholders, door_log)
     write_files(cardholders, door_log, cardholder_file, door_log_file)
 
@@ -33,16 +34,28 @@ def calculate_card_numbers(door_logs: list):
     for index in range(len(door_logs) - 1):
         cur_row = door_logs[index]
         next_row = door_logs[index + 1]
-        if cur_row[1] == 'g':
-            quotient = cur_row[2]
-            if next_row[1] == 'G':
-                remainder = next_row[2]
+        if cur_row[1] == 'G':
+            remainder = cur_row[2]
+            if next_row[1] == 'g':
+                quotient = next_row[2]
 
                 card_number = hex(int(quotient) * 32767 + int(remainder))
                 log.append([next_row[3], card_number[2:]])
             else:
-                raise ValueError
+                pass
     return log
+
+
+def associate_names(cardholders: list, door_logs: list):
+    door_log = []
+    for log in door_logs:
+        for card in cardholders:
+            if card[1].lower() == log[1]:
+                log.append(card[6])
+                door_log.append(log)
+                break
+
+    return door_log
 
 
 def read_files(cardholder_file: string, door_log_file: string):
@@ -60,6 +73,9 @@ def read_files(cardholder_file: string, door_log_file: string):
         for row in csv_reader:
             door_logs.append(row)
 
+    # if door_logs[1][0][0] < door_logs[1][1][0]:
+    #     door_logs = list(reversed(door_logs[1:]))
+
     return cardholders[1:], door_logs[1:]
 
 
@@ -72,7 +88,7 @@ def write_files(cardholders: list, door_log: list, cardholder_file: string, door
 
     with open(door_log_file[:-4] + '-out.csv', 'w') as f:
         csv_writer = csv.writer(f, delimiter=',')
-        csv_writer.writerow(['time', 'card_number'])
+        csv_writer.writerow(['time', 'card_number', 'name'])
         for row in door_log:
             csv_writer.writerow(row)
 
